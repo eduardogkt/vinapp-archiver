@@ -16,7 +16,6 @@ int main(int argc, char **argv) {
         case VINA_OPTION_X: vinaExtrai(vina_path, argc, argv);                     break;
         case VINA_OPTION_R: vinaRemove(vina_path, argc, argv);                     break;
         case VINA_OPTION_C: vinaLista(vina_path, argc, argv);                      break;
-        case VINA_OPTION_H: vinaAjuda();                                           break;
         default: return VINA_ERROR_ENTRY;
     }
     return 0;

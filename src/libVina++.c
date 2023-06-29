@@ -40,6 +40,8 @@ void vinaLeEntrada(int argc, char **argv, char *opcao, char **vina_path, char **
             }
             break;
         case 'h':
+            vinaAjuda();
+            exit(TRUE);
             break;
         default:
             fprintf(stderr, "Erro: entrada invalida.\n");
