@@ -1,0 +1,372 @@
+/*switch (opt) {
+        case 'i':
+        case 'a':
+        case 'x':
+        case 'r':
+        case 'c':
+        case 'h':
+            *target = NULL;
+            *vinafile = optarg;
+            break;
+        case 'm':
+            *target = optarg;
+            *vinafile = argv[3];
+            if (!*vinafile) {
+                fprintf(stderr, "Erro: archive nao especificado.\n");
+                exit(VINA_ERROR_ENTRY);
+            }
+            break;
+        default:
+            if (strchr("iaxrchm", opt)) // se for alguas das opcoes validas
+                fprintf(stderr, "Erro: opcao necessita de argumento.\n");
+            else
+                fprintf(stderr, "Erro: opcao de entrada invalida.\n");
+            exit(VINA_ERROR_ENTRY);
+
+    }*/
+
+/*
+    if (strchr("iaxrch", *opcao)) {
+        *target = NULL;
+        *vinafile = optarg;
+    }
+    else if (strchr("m", *opcao)) {
+        *target = optarg;
+        *vinafile = argv[3];
+        if (!*vinafile) {
+            fprintf(stderr, "Erro: archive nao especificado.\n");
+            exit(VINA_ERROR_ENTRY);
+        }
+    }
+    else {    
+        fprintf(stderr, "Erro: entrada invalida.\n");
+		exit(VINA_ERROR_ENTRY);
+    }*/
+
+    /*
+void vinaInsere(int argc, char **argv, vinaArchive_t archive, char *vina_path) {
+
+    FILE *archive_file;
+    if (!(archive_file = fopen(vina_path, "w"))){
+        fprintf("Erro: nao foi possivel abrir o archive.\n");
+        exit(VINA_ERROR_INSERT_I);
+    }
+
+    // localizando o archive
+    uint32_t archive_offset;
+    size_t read = fread(&archive_offset, sizeof(int), 1, archive_file);
+    if (read == 0) {
+        // cria archive
+    }
+    fseek(archive_file, SEEK_SET, archive_offset);
+    // lendo e armazenando infos do archive
+
+    for (int i = 2; i < argc; i++) {
+        // adicionando arquivo ao archive
+        FILE *file;
+        if (!(file = fopen(argv[i], "r"))) {
+            fprintf("Erro: nao foi possivel inserir o arquivo %d.\n", i);
+            exit(VINA_ERROR_INSERT);
+        }
+
+    }
+}*/
+
+EXTRACAO COLOCANDO NA ARVORE
+ /*no_t *raiz = NULL;
+    lista_avl_t *lista = criaListaAVL(raiz);
+    int ordem = 0;
+
+    // colatando os cabecalhos
+    if (!coletaCabecalhos(vina_file, &raiz, lista, &ordem, ini_dir)) {
+        printf("Erro: nao foi possivel coletar os cabecalhos.\n");
+        exit(VINA_ERROR_EXTRACT);
+    }
+    printf("ini dir: %d\n", ini_dir);
+
+    no_t *no = lista->ini;
+    while (no != NULL) {
+        printf("extraindo %s.\n", no->cabecalho->nome);
+        fseek(vina_file, no->cabecalho->ini_arq, SEEK_SET);
+        char nome[NAME_SIZE];
+        strcpy(nome, no->cabecalho->nome);
+        strcat(nome, "_cu");
+        transfereParaArquivo(vina_file, nome, no->cabecalho->tamanho);
+        no = no->prox;
+    }
+    listaAVLDestroi(lista);*/
+
+
+
+void extraiTodosArquivos(FILE *vina_file, int ini_dir) {
+
+    vina_cabecalho_t cabecalho;
+    size_t lido;
+    
+    fseek(vina_file, ini_dir, SEEK_SET);
+    lido = fread(&cabecalho,  sizeof(vina_cabecalho_t), 1, vina_file);
+    while (!feof(vina_file)) {
+
+        if (lido != 1) {
+            fprintf(stderr, "Erro: falha ao extrair \"%s\"", cabecalho.nome_rel);
+            continue; // passa para o proximo arquivo
+        }
+
+        // cria a hierarquia de diretorios
+        criaDiretorios(cabecalho.nome_rel);
+
+        // salva local de leitura do cabecalho
+        int save = ftell(vina_file);
+        fseek(vina_file, cabecalho.ini_arq, SEEK_SET);
+        transfereParaArquivo(vina_file, cabecalho.nome_rel, cabecalho.tamanho);
+        fseek(vina_file, save, SEEK_SET);
+        
+        lido = fread(&cabecalho, sizeof(vina_cabecalho_t), 1, vina_file);
+    }
+}
+
+// extrai os membros indicados de archive
+// se os membros não forem indicados, todos sao extraidos
+void vinaExtrai(char *vina_path, int argc, char **argv) {
+
+    // abre o arquivo vina adequadamente
+    FILE *vina_file = vinaAbreArchive(vina_path);
+    if (!vina_file)
+        exit(VINA_ERROR_OPEN);
+    
+    // pegando o comeco do diretorio
+    int ini_dir;
+    fread(&ini_dir, sizeof(int), 1, vina_file);
+
+    // se inicio do diretorio for apos o inteiro, o arquivo
+    // vina esta vazio, nao ha nada para ser extraido
+    if (vinaVazio(ini_dir)) {
+        fprintf(stderr, "Erro: arquivo a ser extraido esta vazio.\n");
+        exit(VINA_ERROR_EXTRACT);
+    }
+
+    // caso nao seja fornecido nenhum parametro, extrai todos os arquivos
+    if (argc < 4) {
+        extraiTodosArquivos(vina_file, ini_dir);
+        return;
+    }
+
+    // caso arquivos sejam fornecidos, insere na arvore, procura e os extrai
+    no_t *raiz = NULL;
+    lista_avl_t *lista = criaListaAVL(raiz);
+    int ordem = 0;
+
+    // insere os cabecalhos na arvore
+    if (!coletaCabecalhos(vina_file, &raiz, lista, &ordem, ini_dir))
+        exit(VINA_ERROR_EXTRACT);
+
+    for (int i = 3; i < argc; i++) {
+
+        char *filename = padronizaNome(argv[i]);
+        no_t *no_achado = buscaNo(raiz, filename);
+
+        if (no_achado == NULL) {
+            fprintf(stderr, "Erro: \"%s\" nao encontrado.\n", filename);
+            continue; // passa para o proximo arquivo
+        }
+
+        // cria a hierarquia de diretorios
+        criaDiretorios(filename);
+        
+        // criando o arquivo no diretorio
+        int ini_arq = no_achado->cabecalho->ini_arq;
+        long tam_arq = no_achado->cabecalho->tamanho;
+        fseek(vina_file, ini_arq, SEEK_SET);
+        transfereParaArquivo(vina_file, filename, tam_arq);
+    }
+}
+
+/////////// MOVENDO OS ARQUIVOS ////////////////
+
+printf("movendo para depois de %s\n", target_path);
+
+    // abre o arquivo vina adequadamente
+    FILE *vina_file = vinaAbreArchive(vina_path);
+    if (!vina_file) 
+        exit(VINA_ERROR_OPEN);
+
+    no_t *raiz = NULL;
+    lista_avl_t *lista = criaListaAVL(raiz);
+    int ini_dir, ini_arq = sizeof(int);
+    int ordem = 0;
+    // pegando o comeco do diretorio
+    fread(&ini_dir, sizeof(int), 1, vina_file);
+
+    // se arquivo vina esta vazio, retorna erro
+    if (vinaVazio(ini_dir)) {
+        printf("Erro: archive esta vazio, nao ha nada para mover.\n");
+        vinaAborta(vina_file, lista, VINA_ERROR_MOVE);
+    }    
+
+    if (!coletaCabecalhos(vina_file, &raiz, lista, &ordem, ini_dir)) {
+        vinaAborta(vina_file, lista, VINA_ERROR_MOVE);
+    }
+    ini_arq += lista->soma_tam_arqs;
+
+    // procuarando o arquivo alvo na arvore
+    char *target_name = caminhoRelativo(target_path);
+    no_t *no_target = buscaNo(raiz, target_name);
+    if (no_target == NULL) {
+        fprintf(stderr, "Erro: target \"%s\" nao encontrado.\n", target_name);
+        free(target_name);
+        vinaAborta(vina_file, lista, VINA_ERROR_MOVE);
+    }
+    printf("ini_dir %d\n", ini_dir);
+    printf("ini_arq %d\n", ini_arq);
+    printf("target: %s\n", target_name);
+    printf("arquivo a ser movido: %s\n", argv[4]);
+
+    free(target_name);
+
+    printf("\nANTES DE MUDAR OS PONTEIROS.\n");
+    emOrdem(raiz);
+    listaAVLImprime(lista);    
+    imprimeCabecalhos(lista);
+
+    char *filename = caminhoRelativo(argv[4]);
+    printf("filename %s\n", filename);
+
+    no_t *no_movido = buscaNo(raiz, filename);
+    free(filename);
+
+    // verifica casos nos quais nao eh preciso fazer movimentacoes
+    if (!atendeRequisitosMover(no_movido, no_target)) {
+        vinaAborta(vina_file, lista, VINA_ERROR_MOVE);
+    }
+
+    // copiar o conteudo do movido para um arquivo temporario
+    int ini_arq_movido = no_movido->cabecalho->ini_arq;
+    long tam_arq_movido = no_movido->cabecalho->tamanho;
+    fseek(vina_file, ini_arq_movido, SEEK_SET);
+    if (!transfereParaArquivo(vina_file, TMP_MOVE_FILENAME, tam_arq_movido)) {
+        vinaAborta(vina_file, lista, VINA_ERROR_MOVE);
+    }
+    
+    // move o conteudo dos arquivo subsequente para sobreescrever o movido
+    no_t *no = no_movido->prox;
+    while (no != NULL) {
+        if (!atualizaLocalizacaoArquivo(vina_file, no, -tam_arq_movido)) {
+            vinaAborta(vina_file, lista, VINA_ERROR_MOVE);
+        }
+        no = no->prox;
+    }
+
+    printf("\nDEPOIS DE MOVER O CONTEUDO\n");
+    listaAVLImprime(lista);
+    imprimeCabecalhos(lista);
+
+    // atualizando infos dos subsequentes
+    no = no_movido->prox;
+    while (no != NULL) {
+        no->cabecalho->ini_arq -= tam_arq_movido;
+        no->cabecalho->ordem--;
+        no = no->prox;
+    }
+    printf("\nDEPOIS DE ATUALIZAR VALORES COMO SE O MOVIDO TIVESSE SIDO REMOVIDO\n");
+    imprimeCabecalhos(lista);
+
+    // abrir espaco no arquivo vina para o arquivo movido
+    // indo do ultimo arquivo ate o target
+    no = lista->fim;
+    while (no != NULL && (no != no_target)) {
+        printf("nome %s\n", no->cabecalho->nome_rel);
+        if (!atualizaLocalizacaoArquivo(vina_file, no, tam_arq_movido)) {
+            vinaAborta(vina_file, lista, VINA_ERROR_MOVE);
+        }
+        no = no->ant;
+    }
+
+    // copiando conteudo do arquivo movido para depois do target
+    int ini_target = no_target->cabecalho->ini_arq;
+    long tam_target = no_target->cabecalho->tamanho;
+    int ini_novo_movido = ini_target + tam_target;
+    printf("novo ini_movido %d\n", ini_novo_movido);
+    fseek(vina_file, ini_novo_movido, SEEK_SET);
+    if (!transfereParaVina(vina_file, TMP_MOVE_FILENAME)) {
+        vinaAborta(vina_file, lista, VINA_ERROR_MOVE);        
+    }
+
+    // reorgenizando so ponteiros
+    arrumaNosTarget(lista, no_target, no_movido);
+
+    printf("\nDEPOIS DE ATUALIZAR PONTEIROS PARA O TARGET\n");
+    imprimeCabecalhos(lista);
+
+    // atualiza infos dos nos apos target
+    no = no_target->prox;
+    while (no != NULL) {
+        no->cabecalho->ini_arq = no->ant->cabecalho->ini_arq + no->ant->cabecalho->tamanho;
+        no->cabecalho->ordem = no->ant->cabecalho->ordem + 1;
+        no = no->prox;
+    }
+    printf("\nDEPOIS DE ATUALIZAR INFOS DOS NOS SUBSEQUENTES\n");
+    imprimeCabecalhos(lista);
+    system("rm tmp_move_file");
+
+    no = lista->ini;
+    while (no != NULL) {
+        printf("extraindo %s.\n", no->cabecalho->nome_rel);
+        fseek(vina_file, no->cabecalho->ini_arq, SEEK_SET);
+        char nome[NAME_SIZE];
+        strcpy(nome, no->cabecalho->nome_rel);
+        strcat(nome, "_cu");
+        transfereParaArquivo(vina_file, nome, no->cabecalho->tamanho);
+        no = no->prox;
+    }
+    ini_dir = sizeof(int) + lista->soma_tam_arqs;
+
+    // passar para o diretorio
+    if (!atualizaDiretorio(vina_file, lista)) {
+        vinaAborta(vina_file, lista, VINA_ERROR_MOVE);
+    }
+    // trunca o arquivo com o tamanho correto para evitar erros
+    truncaArquivoVina(vina_path, lista);
+
+    fclose(vina_file);
+    listaAVLDestroi(lista);
+
+// METODOS DE BALANCEAMENTO ///
+
+    /*if (fb > 1 && fatorBalanceamento(no->esq) >= 0) 
+        casoEsqEsq(no, nome);
+    else
+    if (fb < -1 && fatorBalanceamento(no->dir) <= 0) 
+        casoDirDir(no, nome);
+    else
+    if (fb > 1 && fatorBalanceamento(no->esq) < 0) 
+        casoEsqDir(no, nome);
+    else
+    if (fb < -1 && fatorBalanceamento(no->dir) > 0) 
+        casoDirEsq(no, nome);
+    
+    return no;*/
+
+
+    ANTERIOR////////////////////////////////////////
+    int fb = fatorBalanceamento(no);
+
+    if (fb > 1 && no->pai == NULL) // no eh raiz
+        no = rotDireita(no);
+    else 
+    if (fb < -1 && no->pai == NULL) // no eh raiz
+        no = rotEsquerda(no);
+    else 
+    if (fb > 1 && strcmp(nome, no->esq->cabecalho->path) < 0) 
+        casoEsqEsq(no, nome); 
+    else 
+    if (fb < -1 && strcmp(nome, no->dir->cabecalho->path) > 0)
+        casoDirDir(no, nome);
+    else 
+    if (fb > 1 && strcmp(nome, no->esq->cabecalho->path) > 0)
+        casoEsqDir(no, nome);
+    else 
+    
+    if (fb < -1 && strcmp(nome, no->dir->cabecalho->path) < 0)
+        casoDirEsq(no, nome);
+    
+    return no; // retorna o no balanceado
